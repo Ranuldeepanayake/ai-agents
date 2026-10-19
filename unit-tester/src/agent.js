@@ -3,7 +3,7 @@ import { tools, toolFunctions, getContextDirectory, listSourceFiles, runTests, w
 
 // Ollama's OpenAI-compatible endpoint provides reliable tool calling for the
 // qwen2.5-coder model while keeping inference local.
-const client = new OpenAI({ baseURL: process.env.OLLAMA_BASE_URL || "http://localhost:11434/v1", apiKey: "ollama" });
+const client = new OpenAI({ baseURL: process.env.OLLAMA_BASE_URL || "http://192.168.56.1:11434/v1", apiKey: "ollama" });
 const MODEL = process.env.OLLAMA_MODEL || "qwen2.5-coder:7b";
 // Separate limits prevent both model loops and test-repair loops from running
 // indefinitely.
@@ -12,6 +12,21 @@ const MAX_TEST_ITERATIONS = Number.parseInt(process.env.MAX_TEST_ITERATIONS || "
 
 // Keep controller and model activity visible with machine-sortable timestamps.
 const log = (level, message) => console.error(`[${new Date().toISOString()}] [unit-tester] [${level}] ${message}`);
+
+// Accept Qwen's JSON-as-content tool format when native tool_calls are not
+// returned by the configured Ollama endpoint.
+function parseTextToolCall(content) {
+  if (typeof content !== "string") return null;
+  const candidate = content.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
+  const values = [candidate];
+  const start = candidate.indexOf("{"); const end = candidate.lastIndexOf("}");
+  if (start >= 0 && end > start) values.push(candidate.slice(start, end + 1));
+  for (const value of values) {
+    try { const parsed = JSON.parse(value); if (parsed && typeof parsed.name === "string") return { name: parsed.name, arguments: typeof parsed.arguments === "string" ? parsed.arguments : JSON.stringify(parsed.arguments || {}) }; }
+    catch { /* Continue looking for a fallback JSON object. */ }
+  }
+  return null;
+}
 
 // The model can edit and inspect files during its phase, but cannot run tests
 // or write the final report. Those responsibilities belong to this controller.
@@ -29,9 +44,12 @@ async function askModel(task) {
     const message = response.choices?.[0]?.message;
     if (!message) throw new Error("Ollama returned no message.");
     messages.push(message);
-    if (!message.tool_calls?.length) return message.content || "(No editing summary returned.)";
+    let calls = message.tool_calls;
+    const textCall = !calls?.length ? parseTextToolCall(message.content) : null;
+    if (textCall) calls = [{ id: `text-tool-${round}`, function: textCall }];
+    if (!calls?.length) return message.content || "(No editing summary returned.)";
     // Feed each tool result back to the model before requesting its next step.
-    for (const call of message.tool_calls) {
+    for (const call of calls) {
       let result;
       try {
         const fn = toolFunctions[call.function.name];
@@ -44,7 +62,8 @@ async function askModel(task) {
         log("ERROR", `Tool ${call.function.name} failed: ${message}`);
         result = { error: message };
       }
-      messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(result) });
+      if (textCall) messages.push({ role: "user", content: `Tool result for ${call.function.name}: ${JSON.stringify(result)}` });
+      else messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(result) });
     }
   }
   return "Editing phase stopped after reaching its tool-call limit.";

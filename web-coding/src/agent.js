@@ -3,13 +3,24 @@ import { tools, toolFunctions } from "./web-tools.js";
 
 // Ollama's OpenAI-compatible endpoint supports the same tool-calling format as
 // the other local agents in this workspace.
-const client = new OpenAI({ baseURL: process.env.OLLAMA_BASE_URL || "http://localhost:11434/v1", apiKey: "ollama" });
+const client = new OpenAI({ baseURL: process.env.OLLAMA_BASE_URL || "http://192.168.56.1:11434/v1", apiKey: "ollama" });
 const MODEL = process.env.OLLAMA_MODEL || "qwen2.5-coder:7b";
 const MAX_TOOL_ROUNDS = 20;
 
 // Timestamped diagnostics make research and code-editing activity easy to
 // follow in a shared terminal log.
 const log = (level, message) => console.error(`[${new Date().toISOString()}] [web-coding] [${level}] ${message}`);
+
+// Qwen may serialize a requested tool call as ordinary JSON content. Parse it
+// as a compatibility fallback when native tool_calls are absent.
+function parseTextToolCall(content) {
+  if (typeof content !== "string") return null;
+  const candidate = content.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
+  const values = [candidate]; const start = candidate.indexOf("{"); const end = candidate.lastIndexOf("}");
+  if (start >= 0 && end > start) values.push(candidate.slice(start, end + 1));
+  for (const value of values) { try { const parsed = JSON.parse(value); if (parsed && typeof parsed.name === "string") return { name: parsed.name, arguments: typeof parsed.arguments === "string" ? parsed.arguments : JSON.stringify(parsed.arguments || {}) }; } catch { /* Not a JSON tool request. */ } }
+  return null;
+}
 
 /** Run a coding task that may require web research and project edits. */
 export async function runAgent(task) {
@@ -25,11 +36,14 @@ export async function runAgent(task) {
     const message = response.choices?.[0]?.message;
     if (!message) throw new Error("Ollama returned no message.");
     messages.push(message);
-    if (!message.tool_calls?.length) return message.content || "(No response from the model.)";
+    let calls = message.tool_calls;
+    const textCall = !calls?.length ? parseTextToolCall(message.content) : null;
+    if (textCall) calls = [{ id: `text-tool-${round}`, function: textCall }];
+    if (!calls?.length) return message.content || "(No response from the model.)";
 
     // Execute each requested operation and attach its result to the exact
     // tool call that produced it, allowing the model to continue reliably.
-    for (const call of message.tool_calls) {
+    for (const call of calls) {
       let result;
       try {
         const fn = toolFunctions[call.function.name];
@@ -42,7 +56,8 @@ export async function runAgent(task) {
         log("ERROR", `Tool ${call.function.name} failed: ${message}`);
         result = { error: message };
       }
-      messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(result) });
+      if (textCall) messages.push({ role: "user", content: `Tool result for ${call.function.name}: ${JSON.stringify(result)}` });
+      else messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(result) });
     }
   }
   return "Stopped after reaching the maximum web/research tool-call rounds.";

@@ -6,7 +6,7 @@ Node.js agent for Ollama's `qwen2.5-coder:7b`. A controller creates Node.js test
 
 ```sh
 npm install
-OLLAMA_BASE_URL=http://localhost:11434/v1 \
+OLLAMA_BASE_URL=http://192.168.56.1:11434/v1 \
 OLLAMA_MODEL=qwen2.5-coder:7b \
 npm start
 ```

@@ -9,7 +9,7 @@ npm install
 OLLAMA_MODEL=qwen2.5-coder:7b npm start
 ```
 
-By default, the agent connects to Ollama at `http://localhost:11434/v1`. To set a different Ollama server, provide `OLLAMA_BASE_URL`:
+By default, the agent connects to Ollama at `http://192.168.56.1:11434/v1`. To set a different Ollama server, provide `OLLAMA_BASE_URL`:
 
 ```sh
 OLLAMA_BASE_URL=http://192.168.1.50:11434/v1 \
@@ -20,7 +20,7 @@ npm start
 You can also export the variables for the current shell session:
 
 ```sh
-export OLLAMA_BASE_URL=http://localhost:11434/v1
+export OLLAMA_BASE_URL=http://192.168.56.1:11434/v1
 export OLLAMA_MODEL=qwen2.5-coder:7b
 npm start
 ```

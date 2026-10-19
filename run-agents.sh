@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 
-# Launch one agent directly, or all three in separate tmux windows.
+# Launch one agent directly, or all agents in separate tmux windows.
 # This script targets Linux, matching the filesystem safety model of the agents.
 set -Eeuo pipefail
 
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-OLLAMA_BASE_URL="${OLLAMA_BASE_URL:-http://localhost:11434/v1}"
+OLLAMA_BASE_URL="${OLLAMA_BASE_URL:-http://192.168.56.1:11434/v1}"
 OLLAMA_MODEL="${OLLAMA_MODEL:-qwen2.5-coder:7b}"
 export OLLAMA_BASE_URL OLLAMA_MODEL
 
@@ -16,11 +16,12 @@ Usage:
   ./run-agents.sh unit-tester
   ./run-agents.sh web-coding
   ./run-agents.sh git-operations
+  ./run-agents.sh orchestrator
   ./run-agents.sh all [tmux-session-name]
 
 Environment:
   OLLAMA_BASE_URL  Ollama OpenAI-compatible API base URL.
-                    Default: http://localhost:11434/v1
+                    Default: http://192.168.56.1:11434/v1
   OLLAMA_MODEL      Ollama model name.
                     Default: qwen2.5-coder:7b
 EOF
@@ -33,7 +34,19 @@ start_agent() {
     exit 1
   fi
   cd "$ROOT_DIR/$agent"
+  echo "Installing dependencies for $agent..."
+  npm install
   exec npm start
+}
+
+install_agent() {
+  local agent="$1"
+  if [[ ! -d "$ROOT_DIR/$agent" ]]; then
+    echo "Unknown agent directory: $agent" >&2
+    exit 1
+  fi
+  echo "Installing dependencies for $agent..."
+  (cd "$ROOT_DIR/$agent" && npm install)
 }
 
 start_all() {
@@ -43,6 +56,12 @@ start_all() {
     echo "Install tmux, then rerun: ./run-agents.sh all" >&2
     exit 1
   }
+
+  # Install before creating the session so dependency errors are visible in
+  # the invoking terminal instead of being hidden in a tmux window.
+  for agent in file-operations unit-tester web-coding git-operations orchestrator; do
+    install_agent "$agent"
+  done
 
   if tmux has-session -t "$session_name" 2>/dev/null; then
     echo "tmux session already exists: $session_name" >&2
@@ -59,13 +78,15 @@ start_all() {
     "cd $(printf '%q' "$ROOT_DIR/web-coding") && $env_prefix npm start"
   tmux new-window -t "$session_name" -n git-operations \
     "cd $(printf '%q' "$ROOT_DIR/git-operations") && $env_prefix npm start"
+  tmux new-window -t "$session_name" -n orchestrator \
+    "cd $(printf '%q' "$ROOT_DIR/orchestrator") && $env_prefix npm start"
   tmux select-window -t "$session_name:file-operations"
   echo "Started all agents in tmux session: $session_name"
   echo "Attach with: tmux attach -t $session_name"
 }
 
 case "${1:-}" in
-  file-operations|unit-tester|web-coding|git-operations) start_agent "$1" ;;
+  file-operations|unit-tester|web-coding|git-operations|orchestrator) start_agent "$1" ;;
   all) start_all "${2:-local-ai-agents}" ;;
   -h|--help) usage ;;
   *) usage; exit 1 ;;
