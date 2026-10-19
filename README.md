@@ -1,10 +1,11 @@
 # Local Ollama agents
 
-This workspace contains three independent Node.js agents for Ollama's `qwen2.5-coder:7b` model:
+This workspace contains four independent Node.js agents for Ollama's `qwen2.5-coder:7b` model:
 
 - `file-operations`: confined file and directory operations with an explicit absolute-path working-directory change.
 - `unit-tester`: Node.js test generation, execution, stdout/stderr capture, iterative repair, and `TESTING.md` reporting.
 - `web-coding`: public HTML/PDF research combined with confined project code inspection and editing.
+- `git-operations`: confined Git status, history, branch, staging, commit, and safe synchronization operations.
 
 Each agent has its own `package.json`, README, and `src/` directory. Start Ollama first, then run `npm install` and `npm start` from the agent directory. All agents use Ollama's OpenAI-compatible chat-completions endpoint.
 
@@ -29,4 +30,4 @@ All agents write timestamped diagnostics to stderr, including the agent name. To
 
 ## Launcher
 
-The root `run-agents.sh` script sets the Ollama environment variables and can launch one agent or all three. On Linux, make it executable once with `chmod +x run-agents.sh`. Run one agent directly with `./run-agents.sh web-coding`. Run all three interactively in separate `tmux` windows with `./run-agents.sh all`.
+The root `run-agents.sh` script sets the Ollama environment variables and can launch one agent or all four. On Linux, make it executable once with `chmod +x run-agents.sh`. Run one agent directly with `./run-agents.sh web-coding`. Run all four interactively in separate `tmux` windows with `./run-agents.sh all`.

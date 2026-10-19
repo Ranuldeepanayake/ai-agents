@@ -15,6 +15,7 @@ Usage:
   ./run-agents.sh file-operations
   ./run-agents.sh unit-tester
   ./run-agents.sh web-coding
+  ./run-agents.sh git-operations
   ./run-agents.sh all [tmux-session-name]
 
 Environment:
@@ -56,13 +57,15 @@ start_all() {
     "cd $(printf '%q' "$ROOT_DIR/unit-tester") && $env_prefix npm start"
   tmux new-window -t "$session_name" -n web-coding \
     "cd $(printf '%q' "$ROOT_DIR/web-coding") && $env_prefix npm start"
+  tmux new-window -t "$session_name" -n git-operations \
+    "cd $(printf '%q' "$ROOT_DIR/git-operations") && $env_prefix npm start"
   tmux select-window -t "$session_name:file-operations"
   echo "Started all agents in tmux session: $session_name"
   echo "Attach with: tmux attach -t $session_name"
 }
 
 case "${1:-}" in
-  file-operations|unit-tester|web-coding) start_agent "$1" ;;
+  file-operations|unit-tester|web-coding|git-operations) start_agent "$1" ;;
   all) start_all "${2:-local-ai-agents}" ;;
   -h|--help) usage ;;
   *) usage; exit 1 ;;
