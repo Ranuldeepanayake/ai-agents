@@ -1,0 +1,12 @@
+{
+  "name": "local-web-coding-agent",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": { "start": "node src/server.js" },
+  "dependencies": {
+    "cheerio": "^1.0.0",
+    "openai": "^4.104.0",
+    "pdf-parse": "^1.1.1"
+  }
+}

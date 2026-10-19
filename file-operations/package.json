@@ -1,0 +1,8 @@
+{
+  "name": "local-file-operations-agent",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": { "start": "node src/server.js" },
+  "dependencies": { "openai": "^4.104.0" }
+}
