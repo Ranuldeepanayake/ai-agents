@@ -2,6 +2,8 @@
 
 The orchestrator provides one Ollama conversation over the file, unit-testing, web-coding, and Git capabilities. It shares one project directory across all tools, so the model can research documentation, edit code, run tests, and inspect or commit Git changes in one session.
 
+Node.js 18.17 or newer is recommended. The web parser is loaded lazily so the orchestrator can start on Node.js versions without a global browser `File` API.
+
 ## Setup and run
 
 The root launcher installs dependencies automatically. To set up manually, install dependencies for the orchestrator and the imported specialist tools:

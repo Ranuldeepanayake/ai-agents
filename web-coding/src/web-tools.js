@@ -2,8 +2,29 @@ import dns from "node:dns/promises";
 import net from "node:net";
 import fs from "node:fs/promises";
 import path from "node:path";
-import * as cheerio from "cheerio";
-import pdfParse from "pdf-parse";
+
+// Cheerio's newer dependency chain expects the browser File API, which is not
+// available in some supported Node.js 18 installations. Load parsers lazily
+// after installing a minimal compatible File implementation.
+let cheerio;
+let pdfParse;
+
+async function loadParsers() {
+  if (cheerio && pdfParse) return;
+  if (typeof globalThis.File === "undefined" && typeof globalThis.Blob !== "undefined") {
+    globalThis.File = class File extends Blob {
+      constructor(parts, name, options = {}) {
+        super(parts, options);
+        this.name = String(name);
+        this.lastModified = options.lastModified ?? Date.now();
+      }
+    };
+  }
+  const cheerioModule = await import("cheerio");
+  const pdfModule = await import("pdf-parse");
+  cheerio = cheerioModule.default || cheerioModule;
+  pdfParse = pdfModule.default || pdfModule;
+}
 
 // Bound network and prompt payload sizes so a remote page cannot exhaust the
 // agent's memory or overwhelm the model context.
@@ -73,7 +94,8 @@ async function download(url) {
 }
 
 /** Extract readable text from HTML while dropping executable and decorative elements. */
-function extractHtml(bytes) {
+async function extractHtml(bytes) {
+  await loadParsers();
   const html = new TextDecoder().decode(bytes);
   const $ = cheerio.load(html);
   $("script, style, noscript, template, svg, canvas").remove();
@@ -84,6 +106,7 @@ function extractHtml(bytes) {
 
 /** Extract text and metadata from an online PDF using pdf-parse. */
 async function extractPdf(bytes) {
+  await loadParsers();
   const parsed = await pdfParse(Buffer.from(bytes));
   const text = String(parsed.text || "").replace(/\s+/g, " ").trim();
   return { format: "pdf", title: "", pages: parsed.numpages, text: text.slice(0, MAX_EXTRACTED_CHARS), truncated: text.length > MAX_EXTRACTED_CHARS };
@@ -94,7 +117,7 @@ export async function fetchWebSource({ url, format = "auto" }) {
   const response = await download(url);
   const lowerType = response.contentType.toLowerCase();
   const isPdf = format === "pdf" || lowerType.includes("application/pdf") || response.url.toLowerCase().endsWith(".pdf");
-  const extracted = isPdf ? await extractPdf(response.bytes) : extractHtml(response.bytes);
+  const extracted = isPdf ? await extractPdf(response.bytes) : await extractHtml(response.bytes);
   return { sourceUrl: response.url, contentType: response.contentType, ...extracted };
 }
 

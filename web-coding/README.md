@@ -2,6 +2,8 @@
 
 This Node.js agent uses Ollama's `qwen2.5-coder:7b` to research user-specified HTML pages or online PDFs and then use the extracted information while writing code.
 
+Node.js 18.17 or newer is recommended. The HTML/PDF parser is loaded lazily with a compatibility shim for Node.js versions that do not expose the browser `File` API globally.
+
 ## Run
 
 ```sh
